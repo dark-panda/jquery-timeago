@@ -589,6 +589,16 @@
         ok($("#testNullSpaces1").html().match(/^2minutesago$/), "Settings correctly applied");
       });
 
+      test("runtime settings", function () {
+        ok($.timeago.inWords(7200, {
+          "strings": {
+            "prefixAgo": "foo",
+            "suffixAgo": "bar",
+            "wordSeparator": "x"
+          }
+        }).match(/^foox.+xbar$/), "Settings correctly applied");
+      });
+
       module("Disposal");
 
       asyncTest("disposal", function() {

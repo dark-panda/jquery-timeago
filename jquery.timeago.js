@@ -23,15 +23,15 @@
     factory(jQuery);
   }
 }(function ($) {
-  $.timeago = function(timestamp) {
+  $.timeago = function(timestamp, settings) {
     if (timestamp instanceof Date) {
-      return inWords(timestamp);
+      return inWords(timestamp, settings);
     } else if (typeof timestamp === "string") {
-      return inWords($.timeago.parse(timestamp));
+      return inWords($.timeago.parse(timestamp), settings);
     } else if (typeof timestamp === "number") {
-      return inWords(new Date(timestamp));
+      return inWords(new Date(timestamp), settings);
     } else {
-      return inWords($.timeago.datetime(timestamp));
+      return inWords($.timeago.datetime(timestamp), settings);
     }
   };
   var $t = $.timeago;
@@ -62,11 +62,13 @@
         numbers: []
       }
     },
-    inWords: function(distanceMillis) {
-      var $l = this.settings.strings;
+    inWords: function(distanceMillis, settings) {
+      var $s = $.extend(true, {}, $t.settings, settings);
+      var $l = $s.strings;
       var prefix = $l.prefixAgo;
       var suffix = $l.suffixAgo;
-      if (this.settings.allowFuture) {
+
+      if ($s.allowFuture) {
         if (distanceMillis < 0) {
           prefix = $l.prefixFromNow;
           suffix = $l.suffixFromNow;
@@ -123,21 +125,22 @@
   // init is default when no action is given
   // functions are called with context of a single element
   var functions = {
-    init: function(){
-      var refresh_el = $.proxy(refresh, this);
+    init: function(settings){
+      var $s = $.extend(true, {}, $t.settings, settings);
+      var refresh_el = $.proxy(refresh, this, $s);
       refresh_el();
-      var $s = $t.settings;
+
       if ($s.refreshMillis > 0) {
         this._timeagoInterval = setInterval(refresh_el, $s.refreshMillis);
       }
     },
-    update: function(time){
+    update: function(time, settings){
       $(this).data('timeago', { datetime: $t.parse(time) });
-      refresh.apply(this);
+      refresh.call(this, $.extend(true, {}, $t.settings, settings));
     },
-    updateFromDOM: function(){
+    updateFromDOM: function(settings){
       $(this).data('timeago', { datetime: $t.parse( $t.isTime(this) ? $(this).attr("datetime") : $(this).attr("title") ) });
-      refresh.apply(this);
+      refresh.call(this, $.extend(true, {}, $t.settings, settings));
     },
     dispose: function () {
       if (this._timeagoInterval) {
@@ -147,25 +150,41 @@
     }
   };
 
-  $.fn.timeago = function(action, options) {
-    var fn = action ? functions[action] : functions.init;
+  $.fn.timeago = function(actionOrSettings /* , additionalArgs... */) {
+    var action, actionOrSettingsType, fn, fnArgs = [];
+
+    actionOrSettingsType = $.type(actionOrSettings);
+
+    if (!actionOrSettings || actionOrSettingsType === "object") {
+      fn = functions.init;
+
+      if (actionOrSettingsType === "object") {
+        fnArgs.push(actionOrSettings);
+      }
+    }
+    else {
+      fn = functions[actionOrSettings];
+    }
+
     if(!fn){
       throw new Error("Unknown function name '"+ action +"' for timeago");
     }
+
+    fnArgs = fnArgs.concat($.makeArray(arguments).slice(1));
+
     // each over objects here and call the requested function
     this.each(function(){
-      fn.call(this, options);
+      fn.apply(this, fnArgs);
     });
     return this;
   };
 
-  function refresh() {
+  function refresh(settings) {
     var data = prepareData(this);
-    var $s = $t.settings;
 
     if (!isNaN(data.datetime)) {
-      if ( $s.cutoff == 0 || distance(data.datetime) < $s.cutoff) {
-        $(this).text(inWords(data.datetime));
+      if (settings.cutoff == 0 || distance(data.datetime) < settings.cutoff) {
+        $(this).text(inWords(data.datetime, settings));
       }
     }
     return this;
@@ -185,8 +204,8 @@
     return element.data("timeago");
   }
 
-  function inWords(date) {
-    return $t.inWords(distance(date));
+  function inWords(date, settings) {
+    return $t.inWords(distance(date), settings);
   }
 
   function distance(date) {
